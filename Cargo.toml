@@ -13,3 +13,8 @@ log = "0.4"
 
 [dev-dependencies]
 test-log = "0.2"
+
+
+[[bin]]
+name = "day01"
+path = "src/day01/main.rs"
