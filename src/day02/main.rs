@@ -1,9 +1,48 @@
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::BufReader;
+use std::ops::Add;
 use std::path::PathBuf;
+use std::str::FromStr;
 
+use adventofcode2021::parse;
+use anyhow::anyhow;
 use clap::Parser;
 use log::debug;
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Command {
+    depth: i64,
+    forward: i64,
+}
+
+impl FromStr for Command {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (d, n) = s.split_once(' ').ok_or(anyhow!("No space in '{s}'"))?;
+        let n: i64 = str::parse(n)?;
+
+        let (depth, forward) = match d {
+            "forward" => (0, n),
+            "down" => (n, 0),
+            "up" => (-n, 0),
+            _ => return Err(anyhow!("Unexpected direction {d}")),
+        };
+
+        Ok(Command { depth, forward })
+    }
+}
+
+impl Add<Command> for Command {
+    type Output = Command;
+
+    fn add(self, rhs: Command) -> Self::Output {
+        Command {
+            depth: self.depth + rhs.depth,
+            forward: self.forward + rhs.forward,
+        }
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Main
@@ -23,8 +62,16 @@ fn main() {
     let file = File::open(args.input).unwrap();
     let buf = BufReader::new(file);
 
-    let line_count = buf.lines().count();
-    println!("Found {line_count} lines");
+    let directions: Vec<Command> = parse::buffer(buf).unwrap();
+    let sum: Command = directions
+        .iter()
+        .copied()
+        .reduce(Command::add)
+        .unwrap_or_default();
+
+    let mul = sum.depth * sum.forward;
+
+    println!("Found {mul}");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,8 +84,30 @@ mod tests {
     #[allow(unused_imports)]
     use super::*;
 
+    static EXAMPLE: &str = r###"
+        forward 5
+        down 5
+        forward 8
+        up 3
+        down 8
+        forward 2
+    "###;
+
     #[test]
-    fn test_thing() {
-        assert_eq!(2i64 + 2, 4);
+    fn test_parse() {
+        let directions: Vec<Command> = parse::buffer(EXAMPLE.as_bytes()).unwrap();
+        let sum: Command = directions
+            .iter()
+            .copied()
+            .reduce(Command::add)
+            .unwrap_or_default();
+
+        assert_eq!(
+            sum,
+            Command {
+                depth: 10,
+                forward: 15
+            }
+        )
     }
 }
