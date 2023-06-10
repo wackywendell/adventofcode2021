@@ -1,9 +1,23 @@
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-use std::path::PathBuf;
-
+use adventofcode2021::parse;
 use clap::Parser;
 use log::debug;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::PathBuf;
+
+pub fn find_increases(depths: &[i64]) -> isize {
+    let mut count = 0;
+    let mut prev = depths.first().copied().unwrap_or_default();
+
+    for &n in &depths[1..] {
+        if prev < n {
+            count += 1;
+        }
+        prev = n;
+    }
+
+    count
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Main
@@ -22,9 +36,11 @@ fn main() {
     debug!("Using input {}", args.input.display());
     let file = File::open(args.input).unwrap();
     let buf = BufReader::new(file);
+    let ns: Vec<i64> = parse::buffer(buf).unwrap();
 
-    let line_count = buf.lines().count();
-    println!("Found {line_count} lines");
+    let count = find_increases(&ns);
+
+    println!("Found {count} increases");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,8 +53,25 @@ mod tests {
     #[allow(unused_imports)]
     use super::*;
 
+    const EXAMPLE: &str = r###"
+        199
+        200
+        208
+        210
+        200
+        207
+        240
+        269
+        260
+        263    
+    "###;
+
     #[test]
     fn test_thing() {
-        assert_eq!(2i64 + 2, 4);
+        let ns: Vec<i64> = parse::buffer(EXAMPLE.as_bytes()).unwrap();
+
+        let count = find_increases(&ns);
+
+        assert_eq!(count, 7);
     }
 }
