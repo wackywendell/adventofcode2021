@@ -19,6 +19,19 @@ pub fn find_increases(depths: &[i64]) -> isize {
     count
 }
 
+pub fn find_window_increases(depths: &[i64], window_size: usize) -> isize {
+    let mut count = 0;
+    for w in depths.windows(window_size + 1) {
+        let n1 = w[0];
+        let n2 = w[w.len() - 1];
+        if n2 > n1 {
+            count += 1;
+        }
+    }
+
+    count
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 /// Main
 
@@ -39,8 +52,9 @@ fn main() {
     let ns: Vec<i64> = parse::buffer(buf).unwrap();
 
     let count = find_increases(&ns);
+    let count3 = find_window_increases(&ns, 3);
 
-    println!("Found {count} increases");
+    println!("Found {count} increases, and {count3} sliding increases");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,7 +85,9 @@ mod tests {
         let ns: Vec<i64> = parse::buffer(EXAMPLE.as_bytes()).unwrap();
 
         let count = find_increases(&ns);
-
         assert_eq!(count, 7);
+
+        let count3 = find_window_increases(&ns, 3);
+        assert_eq!(count3, 5);
     }
 }
