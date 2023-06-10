@@ -9,11 +9,14 @@ version = "0.1.0"
 anyhow = "1.0"
 clap = {version = "4.1", features = ["derive"]}
 env_logger = "0.10"
+itertools = "0.10.5"
 log = "0.4"
 
 [dev-dependencies]
 test-log = "0.2"
 
+[lib]
+path = "src/lib/mod.rs"
 
 [[bin]]
 name = "day01"
