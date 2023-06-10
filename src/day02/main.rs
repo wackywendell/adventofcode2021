@@ -10,6 +10,38 @@ use clap::Parser;
 use log::debug;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Submarine {
+    depth: i64,
+    forward: i64,
+    aim: i64,
+}
+
+impl Add<Command> for Submarine {
+    type Output = Submarine;
+
+    #[allow(clippy::suspicious_arithmetic_impl)]
+    fn add(self, rhs: Command) -> Self::Output {
+        let (depth, forward, aim) = match rhs {
+            Command {
+                depth: 0,
+                forward: n,
+            } => (self.aim * n, n, 0),
+            Command {
+                depth: n,
+                forward: 0,
+            } => (0, 0, n),
+            _ => panic!("Unexpected command {rhs:?}"),
+        };
+
+        Submarine {
+            depth: self.depth + depth,
+            forward: self.forward + forward,
+            aim: self.aim + aim,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Command {
     depth: i64,
     forward: i64,
@@ -72,6 +104,18 @@ fn main() {
     let mul = sum.depth * sum.forward;
 
     println!("Found {mul}");
+
+    let sub: Submarine = directions
+        .iter()
+        .copied()
+        .fold(Submarine::default(), Submarine::add);
+
+    let mul = sub.depth * sub.forward;
+    println!(
+        "Submarine landed at {d} * {f} = {mul}",
+        d = sub.depth,
+        f = sub.forward
+    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,7 +138,7 @@ mod tests {
     "###;
 
     #[test]
-    fn test_parse() {
+    fn test_part_one() {
         let directions: Vec<Command> = parse::buffer(EXAMPLE.as_bytes()).unwrap();
         let sum: Command = directions
             .iter()
@@ -107,6 +151,24 @@ mod tests {
             Command {
                 depth: 10,
                 forward: 15
+            }
+        )
+    }
+
+    #[test]
+    fn test_part_two() {
+        let directions: Vec<Command> = parse::buffer(EXAMPLE.as_bytes()).unwrap();
+        let sum: Submarine = directions
+            .iter()
+            .copied()
+            .fold(Submarine::default(), Submarine::add);
+
+        assert_eq!(
+            sum,
+            Submarine {
+                depth: 60,
+                forward: 15,
+                aim: 10,
             }
         )
     }
