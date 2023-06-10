@@ -1,0 +1,34 @@
+#!/bin/bash
+
+day="$1";
+
+[ "$day" -eq "$day" ] 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "Expected a number"
+    exit 1
+fi
+
+if [ "$day" -gt 25 ] 2>/dev/null; then
+    echo "Expected a number <= 25"
+    exit 2
+fi
+
+touch inputs/day"$day".txt
+mkdir -p src/day"$day"
+
+main="src/day$day/main.rs"
+if [[ -f "$main" ]]; then
+    echo "Main already exists; leaving untouched."
+else
+    sed "s/template/day${day}/" src/template.rs > "$main"
+
+    cat >>Cargo.toml <<EOF
+
+
+[[bin]]
+name = "day$day"
+path = "src/day$day/main.rs"
+EOF
+fi
+
+code . inputs/day"$day".txt "$main"
