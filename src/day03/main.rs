@@ -10,19 +10,26 @@ use clap::Parser;
 use log::debug;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DiagnosticReport {
-    observations: usize,
-    summed: Vec<usize>,
-}
+pub struct DiagnosticReport<const N: usize>(Vec<Observation<N>>);
 
-impl DiagnosticReport {
+impl<const N: usize> DiagnosticReport<N> {
     pub fn power(&self) -> (u16, u16) {
+        let mut summed: Vec<usize> = repeat(0).take(N).collect();
+
+        for &obs in &self.0 {
+            for (ix, b) in obs.bools().enumerate() {
+                if b {
+                    summed[ix] += 1
+                }
+            }
+        }
+
         let mut gamma = 0u16;
         let mut epsilon = 0u16;
-        for &cnt in &self.summed {
+        for &cnt in &summed {
             gamma <<= 1;
             epsilon <<= 1;
-            if cnt > self.observations / 2 {
+            if cnt > self.0.len() / 2 {
                 gamma |= 1;
             } else {
                 epsilon |= 1;
@@ -31,26 +38,48 @@ impl DiagnosticReport {
 
         (gamma, epsilon)
     }
+
+    fn popular_bit(observations: impl IntoIterator<Item = Observation<N>>, ix: usize) -> bool {
+        let mut cnt = 0;
+        let mut total = 0;
+        for o in observations {
+            total += 1;
+            if *o.0.get(ix).unwrap() {
+                cnt += 1;
+            }
+        }
+
+        cnt >= total - cnt
+    }
+
+    pub fn life(&self) -> (u16, u16) {
+        let mut oxygens = self.0.clone();
+        let mut co2 = self.0.clone();
+
+        for ix in 0..N {
+            let bit = DiagnosticReport::popular_bit(oxygens.iter().copied(), ix);
+            oxygens.retain(|&n| n.0.get(ix).as_deref().copied() == Some(bit));
+
+            if co2.len() > 1 {
+                let bit = !DiagnosticReport::popular_bit(co2.iter().copied(), ix);
+                co2.retain(|&n| n.0.get(ix).as_deref().copied() == Some(bit));
+            }
+        }
+
+        if oxygens.len() != 1 {
+            panic!("Expected 1 oxygen {:?}", oxygens);
+        }
+        if co2.len() != 1 {
+            panic!("Expected 1 co2 {:?}", co2);
+        }
+
+        (oxygens[0].into(), co2[0].into())
+    }
 }
 
-impl<const N: usize> FromIterator<Observation<N>> for DiagnosticReport {
+impl<const N: usize> FromIterator<Observation<N>> for DiagnosticReport<N> {
     fn from_iter<T: IntoIterator<Item = Observation<N>>>(iter: T) -> Self {
-        let mut summed: Vec<usize> = repeat(0).take(N).collect();
-        let mut observations: usize = 0;
-
-        for obs in iter {
-            for (ix, b) in obs.bools().enumerate() {
-                if b {
-                    summed[ix] += 1
-                }
-            }
-            observations += 1;
-        }
-
-        DiagnosticReport {
-            observations,
-            summed,
-        }
+        DiagnosticReport(Vec::from_iter(iter))
     }
 }
 
@@ -146,7 +175,11 @@ fn main() {
     let (g, e) = diagnostics.power();
     let mul = (g as u32) * (e as u32);
 
-    println!("Found {g} * {e} = {mul}");
+    println!("Found power {g} * {e} = {mul}");
+
+    let (ox, co) = diagnostics.life();
+    let mul = (ox as u32) * (co as u32);
+    println!("Found life {ox} * {co} = {mul}");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -224,5 +257,14 @@ mod tests {
 
         let (g, e) = diagnostics.power();
         assert_eq!((g, e), (22, 9));
+    }
+
+    #[test]
+    fn test_life() {
+        let observations: Vec<Observation<5>> = parse::buffer(EXAMPLE.as_bytes()).unwrap();
+        let diagnostics = DiagnosticReport::from_iter(observations.iter().copied());
+
+        let (ox, co) = diagnostics.life();
+        assert_eq!((ox, co), (23, 10));
     }
 }
