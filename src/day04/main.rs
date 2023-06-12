@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::num::ParseIntError;
@@ -13,13 +14,8 @@ pub struct BingoGame {
     instructions: Vec<u16>,
     boards: Vec<Board>,
     played: usize,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum State {
-    Continuing(u16),
-    Won(u16, usize),
-    Finished,
+    winners: Vec<usize>,
+    playing: HashSet<usize>,
 }
 
 impl BingoGame {
@@ -57,30 +53,37 @@ impl BingoGame {
 
         let boards_result: std::io::Result<anyhow::Result<Vec<Board>>> = boards_iter.collect();
         let boards: Vec<Board> = boards_result??;
+        let board_count = boards.len();
 
         Ok(BingoGame {
             instructions,
             boards,
             played: 0,
+            winners: Default::default(),
+            playing: HashSet::from_iter(0..board_count),
         })
     }
 
-    pub fn draw(&mut self) -> State {
-        let value = match self.instructions.get(self.played) {
-            Some(&ix) => ix,
-            None => return State::Finished,
-        };
+    /// Returns the value of the drawn instruction, and the number of winning boards
+    pub fn draw(&mut self) -> Option<(u16, usize)> {
+        let &value = self.instructions.get(self.played)?;
 
+        let mut won = 0;
         for (ix, board) in self.boards.iter_mut().enumerate() {
-            debug!("Checking board {ix}, value {value}");
+            // debug!("Checking board {ix}, value {value}");
+            if !self.playing.contains(&ix) {
+                continue;
+            }
             board.draw(value);
             if board.won() {
-                return State::Won(value, ix);
+                won += 1;
+                self.playing.remove(&ix);
+                self.winners.push(ix);
             }
         }
 
         self.played += 1;
-        State::Continuing(value)
+        Some((value, won))
     }
 }
 
@@ -187,15 +190,20 @@ fn main() {
 
     loop {
         match game.draw() {
-            State::Continuing(value) => println!("Drew {value}"),
-            State::Won(value, ix) => {
-                let sum = game.boards[ix].unmarked_sum();
-                let mul = sum * (value as u32);
-                println!("Drew {value}, and {ix} Won with sum {sum} (mul {mul})!");
-                break;
+            Some((_value, 0)) => {
+                // println!("Drew {value}");
             }
-            State::Finished => {
-                println!("No winners?!");
+
+            Some((value, n)) => {
+                println!("Drew {value}:");
+                for &ix in game.winners.iter().rev().take(n).rev() {
+                    let sum = game.boards[ix].unmarked_sum();
+                    let mul = sum * (value as u32);
+                    println!("  {ix} Won with sum {sum} (mul {mul})!");
+                }
+            }
+            None => {
+                println!("No more winners.");
                 break;
             }
         }
@@ -246,19 +254,37 @@ mod tests {
     fn test_games() {
         let mut game = BingoGame::parse(EXAMPLE.as_bytes()).unwrap();
 
-        assert_eq!(game.draw(), State::Continuing(7));
-        assert_eq!(game.draw(), State::Continuing(4));
-        assert_eq!(game.draw(), State::Continuing(9));
-        assert_eq!(game.draw(), State::Continuing(5));
-        assert_eq!(game.draw(), State::Continuing(11));
-        assert_eq!(game.draw(), State::Continuing(17));
-        assert_eq!(game.draw(), State::Continuing(23));
-        assert_eq!(game.draw(), State::Continuing(2));
-        assert_eq!(game.draw(), State::Continuing(0));
-        assert_eq!(game.draw(), State::Continuing(14));
-        assert_eq!(game.draw(), State::Continuing(21));
-        assert_eq!(game.draw(), State::Won(24, 2));
+        assert_eq!(game.draw(), Some((7, 0)));
+        assert_eq!(game.draw(), Some((4, 0)));
+        assert_eq!(game.draw(), Some((9, 0)));
+        assert_eq!(game.draw(), Some((5, 0)));
+        assert_eq!(game.draw(), Some((11, 0)));
+        assert_eq!(game.draw(), Some((17, 0)));
+        assert_eq!(game.draw(), Some((23, 0)));
+        assert_eq!(game.draw(), Some((2, 0)));
+        assert_eq!(game.draw(), Some((0, 0)));
+        assert_eq!(game.draw(), Some((14, 0)));
+        assert_eq!(game.draw(), Some((21, 0)));
+        assert_eq!(game.draw(), Some((24, 1)));
 
-        assert_eq!(game.boards[2].unmarked_sum(), 188);
+        let winner = game.winners[0];
+        assert_eq!(winner, 2);
+
+        let mut last_value = None;
+        for _ in 0..100 {
+            let (value, _) = game.draw().unwrap();
+            if !game.playing.is_empty() {
+                continue;
+            }
+
+            last_value = Some(value);
+            break;
+        }
+
+        assert_eq!(game.winners, vec![2, 0, 1]);
+        assert_eq!(last_value, Some(13));
+
+        let &last_winner = game.winners.last().unwrap();
+        assert_eq!(game.boards[last_winner].unmarked_sum(), 148);
     }
 }
