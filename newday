@@ -20,7 +20,7 @@ main="src/day$day/main.rs"
 if [[ -f "$main" ]]; then
     echo "Main already exists; leaving untouched."
 else
-    sed "s/template/day${day}/" src/template.rs > "$main"
+    sed "s/template/day${day}/" examples/template.rs > "$main"
 
     cat >>Cargo.toml <<EOF
 

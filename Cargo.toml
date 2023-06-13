@@ -19,20 +19,24 @@ test-log = "0.2"
 [lib]
 path = "src/lib/mod.rs"
 
+[[example]]
+crate-type = ["bin"]
+doc = false
+name = "template"
+path = "examples/template.rs"
+test = true
+
 [[bin]]
 name = "day01"
 path = "src/day01/main.rs"
-
 
 [[bin]]
 name = "day02"
 path = "src/day02/main.rs"
 
-
 [[bin]]
 name = "day03"
 path = "src/day03/main.rs"
-
 
 [[bin]]
 name = "day04"

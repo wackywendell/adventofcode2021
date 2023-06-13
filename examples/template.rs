@@ -1,9 +1,11 @@
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::BufReader;
 use std::path::PathBuf;
 
 use clap::Parser;
 use log::debug;
+
+use adventofcode2021::parse;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Main
@@ -22,9 +24,9 @@ fn main() {
     debug!("Using input {}", args.input.display());
     let file = File::open(args.input).unwrap();
     let buf = BufReader::new(file);
+    let nums: Vec<i64> = parse::buffer(buf).unwrap();
 
-    let line_count = buf.lines().count();
-    println!("Found {line_count} lines");
+    println!("Found {length} lines: {nums:?}", length = nums.len());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,8 +39,17 @@ mod tests {
     #[allow(unused_imports)]
     use super::*;
 
+    const EXAMPLE: &str = r###"
+        2
+        3
+        5
+        7
+        9
+    "###;
+
     #[test]
-    fn test_thing() {
-        assert_eq!(2i64 + 2, 4);
+    fn test_basic() {
+        let nums: Vec<i64> = parse::buffer(EXAMPLE.as_bytes()).unwrap();
+        assert_eq!(nums, vec![2, 3, 5, 7, 9]);
     }
 }
