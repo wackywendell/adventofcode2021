@@ -352,6 +352,7 @@ impl Possibilities {
                 continue;
             }
 
+            // It turns out - this isn't needed, the above cover all cases
             changed |= self.solve_three();
         }
     }
