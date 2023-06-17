@@ -372,15 +372,16 @@ impl Possibilities {
         digits.iter().next().copied()
     }
 
-    pub fn solve_outputs(&self) -> Option<Vec<u8>> {
-        let mut looked_up = Vec::with_capacity(self.outputs.len());
+    pub fn solve_outputs(&self) -> Option<u64> {
+        let mut looked_up: u64 = 0;
         for output in &self.outputs {
             let digits = self.patterns.get(output)?;
             if digits.len() != 1 {
                 return None;
             }
             let d = digits.iter().next().copied()?;
-            looked_up.push(d);
+            looked_up *= 10;
+            looked_up += d as u64;
         }
         Some(looked_up)
     }
@@ -407,6 +408,20 @@ fn main() {
 
     let count: usize = connections.iter().map(|c| c.simples()).sum();
     println!("Found {count} simples");
+
+    let mut total: u64 = 0;
+    for connections in &connections {
+        let mut possibilites = Possibilities::new(connections);
+        possibilites.simplify();
+        if !possibilites.all_known() {
+            panic!("Unsolved!");
+        }
+
+        let looked_up = possibilites.solve_outputs().unwrap();
+        total += looked_up;
+    }
+
+    println!("Output sum: {total}");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -432,18 +447,7 @@ mod tests {
         gcafb gcf dcaebfg ecagb gf abcdeg gaef cafbge fdbac fegbdc | fgae cfgab fg bagce
     "###;
 
-    const EXAMPLE_OUTPUTS: [[u8; 4]; 10] = [
-        [8, 3, 9, 4],
-        [9, 7, 8, 1],
-        [1, 1, 9, 7],
-        [9, 3, 6, 1],
-        [4, 8, 7, 3],
-        [8, 4, 1, 8],
-        [4, 5, 4, 8],
-        [1, 6, 2, 5],
-        [8, 7, 1, 7],
-        [4, 3, 1, 5],
-    ];
+    const EXAMPLE_OUTPUTS: [u64; 10] = [8394, 9781, 1197, 9361, 4873, 8418, 4548, 1625, 8717, 4315];
 
     #[test]
     fn test_basic() {
@@ -468,7 +472,8 @@ mod tests {
         let connections: Vec<Connections> = parse::buffer(EXAMPLE.as_bytes()).unwrap();
         assert_eq!(connections.len(), EXAMPLE_OUTPUTS.len());
 
-        for (c, out) in connections.iter().zip(EXAMPLE_OUTPUTS.iter()) {
+        let mut output_sum = 0;
+        for (c, &out) in connections.iter().zip(EXAMPLE_OUTPUTS.iter()) {
             let mut possibilities = Possibilities::new(c);
             possibilities.simplify();
 
@@ -476,7 +481,10 @@ mod tests {
             assert!(possibilities.all_known());
             let output = possibilities.solve_outputs().unwrap();
 
-            assert_eq!(output, *out);
+            assert_eq!(output, out);
+            output_sum += output;
         }
+
+        assert_eq!(output_sum, 61229);
     }
 }
