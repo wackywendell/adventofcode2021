@@ -23,7 +23,6 @@ impl FromStr for Row {
                     row.push(c.to_digit(10).unwrap() as u8);
                 }
 
-                // '#' => row.push(1),
                 _ => return Err(anyhow!("Invalid character: {c}")),
             }
         }
@@ -55,12 +54,6 @@ impl Grid {
                     (x as isize, y as isize - 1),
                     (x as isize, y as isize + 1),
                 ];
-
-                let values: Vec<u8> = neighbor_ixs
-                    .iter()
-                    .flat_map(|&(x, y)| self.get(x, y))
-                    .collect();
-                debug!("({x}, {y}): {value} -> {values:?}");
 
                 if neighbor_ixs
                     .iter()
