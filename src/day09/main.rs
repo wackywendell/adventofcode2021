@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
@@ -43,22 +44,23 @@ impl Grid {
             .and_then(|row| row.0.get(y as usize).copied())
     }
 
+    /// Returns an iterator over the neighbors of the given location
+    pub fn neighbors(&self, x: isize, y: isize) -> impl Iterator<Item = (isize, isize, u8)> + '_ {
+        let neighbor_ixs = [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)];
+
+        neighbor_ixs
+            .into_iter()
+            .flat_map(|(nx, ny)| self.get(nx, ny).map(|n| (nx, ny, n)))
+    }
+
     /// Returns a list of (x, y, value) tuples for all the minima in the grid.
     pub fn minima(&self) -> Vec<(usize, usize, u8)> {
         let mut points = Vec::new();
         for (x, row) in self.0.iter().enumerate() {
             for (y, &value) in row.0.iter().enumerate() {
-                let neighbor_ixs = [
-                    (x as isize - 1, y as isize),
-                    (x as isize + 1, y as isize),
-                    (x as isize, y as isize - 1),
-                    (x as isize, y as isize + 1),
-                ];
-
-                if neighbor_ixs
-                    .iter()
-                    .flat_map(|&(x, y)| self.get(x, y))
-                    .all(|n| n > value)
+                if self
+                    .neighbors(x as isize, y as isize)
+                    .all(|(_, _, n)| n > value)
                 {
                     points.push((x, y, value));
                 }
@@ -68,8 +70,40 @@ impl Grid {
         points
     }
 
+    /// Returns the sum of the risk levels of all the minima in the grid
     pub fn risk_sum(&self) -> i64 {
         self.minima().iter().map(|&(_, _, v)| v as i64 + 1).sum()
+    }
+
+    pub fn basin_sizes(&self) -> Vec<usize> {
+        let minima = self.minima();
+        let mut sizes: Vec<usize> = minima.iter().map(|_| 0).collect();
+
+        for (&(mx, my, mv), size) in minima.iter().zip(sizes.iter_mut()) {
+            let mut visited = HashSet::new();
+            let mut queue = vec![(mx as isize, my as isize, mv)];
+            while let Some((x, y, v)) = queue.pop() {
+                if v == 9 || visited.contains(&(x, y)) {
+                    continue;
+                }
+                visited.insert((x, y));
+
+                *size += 1;
+
+                let nbrs: Vec<_> = self.neighbors(x, y).collect();
+
+                queue.extend(nbrs);
+            }
+        }
+
+        sizes
+    }
+
+    pub fn basin_max_product(&self) -> i64 {
+        let mut sizes = self.basin_sizes();
+        sizes.sort_unstable();
+
+        sizes.iter().rev().take(3).map(|&n| n as i64).product()
     }
 }
 
@@ -99,6 +133,8 @@ fn main() {
     let grid: Grid = parse::buffer(buf).unwrap();
 
     println!("Part 1: {}", grid.risk_sum());
+
+    println!("Part 2: {}", grid.basin_max_product());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,5 +164,13 @@ mod tests {
 
         assert_eq!(minima, vec![1, 0, 5, 5]);
         assert_eq!(grid.risk_sum(), 15);
+    }
+
+    #[test]
+    fn test_basins() {
+        let grid: Grid = parse::buffer(EXAMPLE.as_bytes()).unwrap();
+        let sizes = grid.basin_sizes();
+        assert_eq!(sizes, vec![3, 9, 14, 9]);
+        assert_eq!(grid.basin_max_product(), 1134);
     }
 }
