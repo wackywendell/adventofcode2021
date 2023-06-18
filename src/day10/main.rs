@@ -48,8 +48,9 @@ pub fn mismatches(s: &str) -> (Vec<char>, Vec<char>) {
     (stack, closers)
 }
 
-pub fn score_mismatches(s: &str) -> i64 {
-    let mut score = 0;
+pub fn score_pairs(s: &str) -> (Vec<i64>, Vec<i64>) {
+    let mut closers_scores = Vec::new();
+    let mut openers_scores = Vec::new();
 
     for line in s.lines() {
         let t = line.trim();
@@ -57,7 +58,7 @@ pub fn score_mismatches(s: &str) -> i64 {
             continue;
         }
 
-        let (_unclosed, closers) = mismatches(t);
+        let (unclosed, closers) = mismatches(t);
 
         // debug!(
         //     "Line: {t}\n    {unclosed:?}, {closers:?}",
@@ -66,7 +67,7 @@ pub fn score_mismatches(s: &str) -> i64 {
         // );
 
         let s = match closers.first() {
-            None => continue,
+            None => 0,
             Some(')') => 3,
             Some(']') => 57,
             Some('}') => 1197,
@@ -74,10 +75,36 @@ pub fn score_mismatches(s: &str) -> i64 {
             Some(c) => panic!("Unexpected closer {c}"),
         };
 
-        score += s;
+        if s > 0 {
+            closers_scores.push(s);
+            continue;
+        }
+
+        let mut score = 0i64;
+        for &c in unclosed.iter().rev() {
+            let cur = match c {
+                '(' => 1,
+                '[' => 2,
+                '{' => 3,
+                '<' => 4,
+                _ => panic!("Unexpected opener {c}"),
+            };
+
+            score = score * 5 + cur;
+        }
+        openers_scores.push(score);
     }
 
-    score
+    (closers_scores, openers_scores)
+}
+
+pub fn score_pair(s: &str) -> (i64, i64) {
+    let (closers_scores, mut openers_scores) = score_pairs(s);
+    let closers_score: i64 = closers_scores.iter().sum();
+    openers_scores.sort();
+    let openers_score: i64 = openers_scores[openers_scores.len() / 2];
+
+    (closers_score, openers_score)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,9 +124,9 @@ fn main() {
     debug!("Using input {}", args.input.display());
     let s = std::fs::read_to_string(&args.input).unwrap();
 
-    let score = score_mismatches(&s);
+    let (closers_score, openers_score) = score_pair(&s);
 
-    println!("Found score {score}");
+    println!("Found scores {closers_score}, {openers_score}");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,7 +154,13 @@ mod tests {
 
     #[test]
     fn test_basic() {
-        let score = score_mismatches(EXAMPLE);
-        assert_eq!(score, 26397);
+        let (closers_scores, openers_scores) = score_pairs(EXAMPLE);
+        assert_eq!(closers_scores, vec![1197, 3, 57, 3, 25137]);
+        assert_eq!(openers_scores, vec![288957, 5566, 1480781, 995444, 294]);
+
+        let (s1, s2) = score_pair(EXAMPLE);
+
+        assert_eq!(s1, 26397);
+        assert_eq!(s2, 288957);
     }
 }
