@@ -108,6 +108,40 @@ impl Caves {
 
         paths
     }
+
+    pub fn paths_double(&self) -> HashSet<Vec<Cave>> {
+        let mut paths: HashSet<Vec<Cave>> = HashSet::new();
+        // Path, double-visited small cave
+        let mut queue: VecDeque<(Vec<Cave>, Option<Cave>)> = VecDeque::new();
+        queue.push_back((vec![Cave::Start], None));
+        while let Some((path, doubled)) = queue.pop_front() {
+            let &cur = path.last().unwrap();
+
+            let neighbors = self.connections.get(&cur).unwrap();
+
+            for &neighbor in neighbors {
+                let new_doubled = match (neighbor, doubled) {
+                    (Cave::Start, _) => continue,
+                    (Cave::End, _) => {
+                        let mut path = path.clone();
+                        path.push(Cave::End);
+                        paths.insert(path);
+                        continue;
+                    }
+                    (cave @ Cave::Named(..), _) if cave.is_big() => doubled,
+                    (cave @ Cave::Named(..), _) if !path.contains(&cave) => doubled,
+                    (Cave::Named(..), Some(_)) => continue,
+                    (cave @ Cave::Named(..), None) => Some(cave),
+                };
+
+                let mut new_path = path.clone();
+                new_path.push(neighbor);
+                queue.push_back((new_path, new_doubled));
+            }
+        }
+
+        paths
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -166,8 +200,13 @@ fn main() {
     let caves: Caves = parse::buffer(buf).unwrap();
 
     let paths = caves.paths();
+    let paths_double = caves.paths_double();
 
-    println!("Found {} paths", paths.len());
+    println!(
+        "Found {} paths, and {} with doubling",
+        paths.len(),
+        paths_double.len()
+    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -245,5 +284,21 @@ mod tests {
 
         let paths = caves.paths();
         assert_eq!(paths.len(), 226);
+    }
+
+    #[test]
+    fn test_paths_double() {
+        let caves: Caves = parse::buffer(EXAMPLE_SMALL.as_bytes()).unwrap();
+        let paths = caves.paths_double();
+        println!("{}", CavePaths(paths.clone()));
+        assert_eq!(paths.len(), 36);
+
+        let caves: Caves = parse::buffer(EXAMPLE_MEDIUM.as_bytes()).unwrap();
+        let paths = caves.paths_double();
+        assert_eq!(paths.len(), 103);
+
+        let caves: Caves = parse::buffer(EXAMPLE_BIG.as_bytes()).unwrap();
+        let paths = caves.paths_double();
+        assert_eq!(paths.len(), 3509);
     }
 }
