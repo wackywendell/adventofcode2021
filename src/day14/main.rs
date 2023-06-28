@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -8,8 +7,7 @@ use anyhow::anyhow;
 use clap::Parser;
 use log::debug;
 
-
-
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Formula {
     rules: HashMap<(char, char), char>,
     template: String,
@@ -93,6 +91,70 @@ impl Formula {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FormulaCounts {
+    rules: HashMap<(char, char), char>,
+    // (character, character) -> count
+    template: HashMap<(char, char), usize>,
+    begin: char,
+    end: char,
+}
+
+impl From<Formula> for FormulaCounts {
+    fn from(value: Formula) -> Self {
+        assert!(value.template.len() >= 2);
+
+        let mut chars = value.template.chars();
+        let begin = chars.next().unwrap();
+        let mut last = begin;
+
+        let mut template = HashMap::new();
+        for c in chars {
+            *template.entry((last, c)).or_insert(0usize) += 1;
+            last = c;
+        }
+
+        FormulaCounts {
+            rules: value.rules,
+            template,
+            begin,
+            end: last,
+        }
+    }
+}
+
+impl FormulaCounts {
+    pub fn step(&mut self) {
+        let mut new = HashMap::new();
+        for (&(c1, c2), &count) in self.template.iter() {
+            if let Some(&mid) = self.rules.get(&(c1, c2)) {
+                *new.entry((c1, mid)).or_insert(0usize) += count;
+                *new.entry((mid, c2)).or_insert(0usize) += count;
+            } else {
+                *new.entry((c1, c2)).or_insert(0usize) += count;
+            }
+        }
+        self.template = new;
+    }
+
+    pub fn score(&self) -> i64 {
+        let mut counts = HashMap::new();
+        counts.insert(self.begin, 1i64);
+        *counts.entry(self.end).or_insert(1) += 1;
+        for (&(c1, c2), &count) in self.template.iter() {
+            *counts.entry(c1).or_insert(0i64) += count as i64;
+            *counts.entry(c2).or_insert(0i64) += count as i64;
+        }
+
+        // Counts are the number of pairs each letter is in (plus one for begin and end),
+        // so divide by two to get the actual letter count
+        let mn = counts.values().min().unwrap() / 2;
+        let mx = counts.values().max().unwrap() / 2;
+
+        mx - mn
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 /// Main
 
@@ -109,7 +171,9 @@ fn main() {
 
     debug!("Using input {}", args.input.display());
     let input = std::fs::read_to_string(&args.input).unwrap();
-    let mut formula = Formula::from_str(&input).unwrap();
+
+    let initial = Formula::from_str(&input).unwrap();
+    let mut formula = initial.clone();
 
     for _ in 0..10 {
         formula.step();
@@ -118,6 +182,13 @@ fn main() {
     let length = formula.template.chars().count();
     let score = formula.score();
     println!("Found {length} template, score {score}");
+
+    let mut counts = FormulaCounts::from(initial);
+    for _ in 0..40 {
+        counts.step();
+    }
+    let score = counts.score();
+    println!("Found score {score}");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -175,5 +246,26 @@ mod tests {
         }
         let score = formula.score();
         assert_eq!(score, 1588);
+    }
+
+    #[test]
+    fn test_long() {
+        let mut formula = Formula::from_str(EXAMPLE).unwrap();
+        let mut counts = FormulaCounts::from(formula.clone());
+        assert_eq!(formula.score(), counts.score());
+
+        for _ in 0..10 {
+            formula.step();
+            counts.step();
+
+            let temp_counts = FormulaCounts::from(formula.clone());
+            assert_eq!(counts, temp_counts);
+            assert_eq!(formula.score(), counts.score());
+        }
+
+        for _ in 10..40 {
+            counts.step();
+        }
+        assert_eq!(counts.score(), 2188189693529);
     }
 }
