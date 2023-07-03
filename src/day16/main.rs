@@ -206,6 +206,35 @@ impl Packet {
                 Payload::Operator(o) => o.components.iter().map(|c| c.version_sum()).sum(),
             }
     }
+
+    pub fn evaluate(&self) -> i64 {
+        let (t, c) = match self.payload {
+            Payload::Literal(Literal(n)) => return n as i64,
+            Payload::Operator(Operator {
+                typ: t,
+                components: ref c,
+            }) => (t, c),
+        };
+
+        let mut inner_values = c.iter().map(|c| c.evaluate());
+        let (l, r) = match t {
+            0 => return inner_values.sum(),
+            1 => return inner_values.product(),
+            2 => return inner_values.min().unwrap_or(0),
+            3 => return inner_values.max().unwrap_or(0),
+            5..=7 => (inner_values.next().unwrap(), inner_values.next().unwrap()),
+            _ => panic!("Invalid operator type: {}", t),
+        };
+
+        let found = match t {
+            5 => l > r,
+            6 => l < r,
+            7 => l == r,
+            _ => unreachable!(),
+        };
+
+        found as i64
+    }
 }
 
 impl Display for Packet {
@@ -269,7 +298,8 @@ fn main() {
     let packet = seq.parse_packet().unwrap();
 
     let vs = packet.version_sum();
-    println!("Found version sum {vs}");
+    let value = packet.evaluate();
+    println!("Found version sum {vs}, value {value}");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -399,5 +429,26 @@ mod tests {
         let pkt = seq.parse_packet().unwrap();
         assert!(seq.remainder_zero());
         assert_eq!(pkt.version_sum(), 31);
+    }
+
+    #[test]
+    fn test_evaluate() {
+        let examples: Vec<(&str, i64)> = vec![
+            ("C200B40A82", 3),
+            ("04005AC33890", 54),
+            ("880086C3E88112", 7),
+            ("CE00C43D881120", 9),
+            ("D8005AC2A8F0", 1),
+            ("F600BC2D8F", 0),
+            ("9C005AC2F8F0", 0),
+            ("9C0141080250320F1802104A08", 1),
+        ];
+
+        for (n, &(s, expected)) in examples.iter().enumerate() {
+            let mut seq: Sequence = s.parse().unwrap();
+            let pkt = seq.parse_packet().unwrap();
+            assert!(seq.remainder_zero());
+            assert_eq!(pkt.evaluate(), expected, "Failed example {n}: {s}");
+        }
     }
 }
