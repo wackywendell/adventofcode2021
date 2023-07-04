@@ -1,5 +1,3 @@
-use std::fs::File;
-use std::io::BufReader;
 use std::ops::RangeInclusive;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -7,8 +5,6 @@ use std::str::FromStr;
 use anyhow::anyhow;
 use clap::Parser;
 use log::debug;
-
-use adventofcode2021::parse;
 
 pub struct Targeting {
     xs: RangeInclusive<i64>,
@@ -31,6 +27,51 @@ impl Targeting {
         dbg!(initial_velocity, height);
 
         height
+    }
+
+    // Does the given velocity reach the target area?
+    pub fn reaches_target(&self, v: (i64, i64)) -> Option<(i64, i64)> {
+        let (mut vx, mut vy) = v;
+        let (mut x, mut y) = (0, 0);
+
+        if vx == 0 && vy == 0 {
+            return None;
+        }
+
+        loop {
+            if self.xs.contains(&x) && self.ys.contains(&y) {
+                return Some((x, y));
+            }
+
+            if y < *self.ys.start() {
+                return None;
+            }
+            if x > *self.xs.end() {
+                return None;
+            }
+
+            x += vx;
+            y += vy;
+
+            vy -= 1;
+            if vx > 0 {
+                vx -= 1;
+            }
+        }
+    }
+
+    pub fn trajectories(&self) -> Vec<(i64, i64)> {
+        let mut trajectories = Vec::new();
+        for vx in 0..=(*self.xs.end() + 2) {
+            let dy = self.ys.start().abs() + 2;
+            for vy in (-dy)..=dy {
+                if let Some((_x, _y)) = self.reaches_target((vx, vy)) {
+                    trajectories.push((vx, vy));
+                }
+            }
+        }
+
+        trajectories
     }
 }
 
@@ -87,6 +128,9 @@ fn main() {
     let target = Targeting::from_str(&s).unwrap();
     let height = target.max_y();
     println!("Found height {height}");
+
+    let combos = target.trajectories();
+    println!("Found {} trajectories", combos.len());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,5 +152,18 @@ mod tests {
         assert_eq!(target.ys, -10..=-5);
 
         assert_eq!(target.max_y(), 45);
+    }
+
+    #[test]
+    fn test_combos() {
+        let target = Targeting::from_str(EXAMPLE).unwrap();
+
+        assert!(target.reaches_target((7, 2)).is_some());
+        assert!(target.reaches_target((6, 3)).is_some());
+        assert!(target.reaches_target((9, 0)).is_some());
+        assert!(target.reaches_target((17, -4)).is_none());
+
+        let combos = target.trajectories();
+        assert_eq!(combos.len(), 112);
     }
 }
