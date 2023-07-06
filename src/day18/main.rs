@@ -183,6 +183,23 @@ impl SnailfishNumber {
             SnailfishNumber::Pair(a, b) => 3 * a.magnitude() + 2 * b.magnitude(),
         }
     }
+
+    pub fn max_pair(ns: &[SnailfishNumber]) -> i64 {
+        let mut max = 0;
+        for (ix, n1) in ns.iter().enumerate() {
+            for n2 in &ns[..ix + 1] {
+                let mut s1 = n1.clone();
+                s1.add(n2.clone());
+                max = max.max(s1.magnitude());
+
+                let mut s2 = n2.clone();
+                s2.add(n1.clone());
+                max = max.max(s2.magnitude());
+            }
+        }
+
+        max
+    }
 }
 
 impl From<i64> for SnailfishNumber {
@@ -228,10 +245,12 @@ fn main() {
     let buf = BufReader::new(file);
     let nums: Vec<SnailfishNumber> = parse::buffer(buf).unwrap();
     let length = nums.len();
-    let sum = SnailfishNumber::sum(nums);
+    let sum = SnailfishNumber::sum(nums.clone());
     let mag = sum.magnitude();
 
     println!("Found {length} numbers summing to {sum} with magnitude {mag}");
+    let max = SnailfishNumber::max_pair(&nums);
+    println!("Max pair magnitude: {max}");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -399,22 +418,31 @@ mod tests {
         }
     }
 
+    const EXAMPLE2: &str = r"
+        [[[0,[5,8]],[[1,7],[9,6]]],[[4,[1,2]],[[1,4],2]]]
+        [[[5,[2,8]],4],[5,[[9,9],0]]]
+        [6,[[[6,2],[5,6]],[[7,6],[4,7]]]]
+        [[[6,[0,7]],[0,9]],[4,[9,[9,0]]]]
+        [[[7,[6,4]],[3,[1,3]]],[[[5,5],1],9]]
+        [[6,[[7,3],[3,2]]],[[[3,8],[5,7]],4]]
+        [[[[5,4],[7,7]],8],[[8,3],8]]
+        [[9,3],[[9,9],[6,[4,9]]]]
+        [[2,[[7,7],7]],[[5,8],[[9,3],[0,2]]]]
+        [[[[5,2],5],[8,[3,7]]],[[5,[7,5]],[4,4]]]";
+
     #[test]
     fn test_homework() {
-        let input = r"
-            [[[0,[5,8]],[[1,7],[9,6]]],[[4,[1,2]],[[1,4],2]]]
-            [[[5,[2,8]],4],[5,[[9,9],0]]]
-            [6,[[[6,2],[5,6]],[[7,6],[4,7]]]]
-            [[[6,[0,7]],[0,9]],[4,[9,[9,0]]]]
-            [[[7,[6,4]],[3,[1,3]]],[[[5,5],1],9]]
-            [[6,[[7,3],[3,2]]],[[[3,8],[5,7]],4]]
-            [[[[5,4],[7,7]],8],[[8,3],8]]
-            [[9,3],[[9,9],[6,[4,9]]]]
-            [[2,[[7,7],7]],[[5,8],[[9,3],[0,2]]]]
-            [[[[5,2],5],[8,[3,7]]],[[5,[7,5]],[4,4]]]";
-        let nums: Vec<SnailfishNumber> = parse::buffer(input.as_bytes()).unwrap();
+        let nums: Vec<SnailfishNumber> = parse::buffer(EXAMPLE2.as_bytes()).unwrap();
         let n = SnailfishNumber::sum(nums);
 
         assert_eq!(n.magnitude(), 4140);
+    }
+
+    #[test]
+    fn test_max() {
+        let nums: Vec<SnailfishNumber> = parse::buffer(EXAMPLE2.as_bytes()).unwrap();
+        let mx = SnailfishNumber::max_pair(&nums);
+
+        assert_eq!(mx, 3993);
     }
 }
