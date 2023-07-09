@@ -27,6 +27,11 @@ const RZ: Matrix = [[0, -1, 0], [1, 0, 0], [0, 0, 1]];
 pub struct Vector(i64, i64, i64);
 
 impl Vector {
+    pub fn manhattan(self) -> i64 {
+        let Vector(x, y, z) = self;
+        x.abs() + y.abs() + z.abs()
+    }
+
     pub fn rotate_x(self) -> Self {
         let Vector(x, y, z) = self;
         let (x, y, z) = (
@@ -337,8 +342,9 @@ impl FromStr for Regions {
 }
 
 impl Regions {
-    pub fn reduce(&self, min_overlap: usize) -> HashSet<Vector> {
+    pub fn reduce(&self, min_overlap: usize) -> Combined {
         let first = &self.0[0];
+        let mut diffs: HashMap<u64, Vector> = HashMap::from_iter(vec![(first.id, Vector(0, 0, 0))]);
         let mut unmerged: HashSet<&Region> = self.0.iter().skip(1).collect();
 
         // Scanners properly rotated and translated, to be checked against those not yet merged in
@@ -373,6 +379,7 @@ impl Regions {
                 let mut new_left = rhs.clone();
                 new_left.apply(&overlap);
                 known_points.extend(new_left.positions.iter().copied());
+                diffs.insert(new_left.id, overlap.diff);
                 left_sides.push_back(new_left);
             }
             unmerged = unmerged.difference(&merged).copied().collect();
@@ -380,13 +387,39 @@ impl Regions {
 
         if !unmerged.is_empty() {
             debug!("Unmerged regions: {:?}", unmerged);
-            return HashSet::new();
+            return Combined::default();
         }
 
-        known_points
+        Combined {
+            positions: known_points,
+            scanners: diffs,
+        }
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Combined {
+    pub positions: HashSet<Vector>,
+    pub scanners: HashMap<u64, Vector>,
+}
+
+impl Combined {
+    pub fn max_distance(&self) -> i64 {
+        let mut max = 0;
+        for (&i1, &v1) in self.scanners.iter() {
+            for (&i2, &v2) in self.scanners.iter() {
+                if i2 <= i1 {
+                    continue;
+                }
+
+                let d = (v2 - v1).manhattan();
+                max = max.max(d);
+            }
+        }
+
+        max
+    }
+}
 ////////////////////////////////////////////////////////////////////////////////
 /// Main
 
@@ -429,9 +462,13 @@ fn main() {
     debug!("Using input {}", args.input.display());
     let s = std::fs::read_to_string(args.input).unwrap();
     let regions = s.parse::<Regions>().unwrap();
-    let points = regions.reduce(12);
+    let all = regions.reduce(12);
 
-    println!("Found {} points", points.len());
+    println!(
+        "Found {} points, max distance {}",
+        all.positions.len(),
+        all.max_distance()
+    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -647,6 +684,7 @@ mod tests {
     fn test_reduce() {
         let regions = example_regions();
         let reduced = regions.reduce(12);
-        assert_eq!(reduced.len(), 79);
+        assert_eq!(reduced.positions.len(), 79);
+        assert_eq!(reduced.max_distance(), 3621);
     }
 }
