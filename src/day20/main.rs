@@ -180,6 +180,11 @@ fn main() {
     image.step();
     image.step();
     println!("After 2 steps: {}", image.count());
+
+    for _ in 2..50 {
+        image.step();
+    }
+    println!("After 50 steps: {}", image.count());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,5 +286,10 @@ mod tests {
         let expected2 = Image::from_str(&format!("{ALGO}\n{expected_str_2}")).unwrap();
         assert_eq!(image, expected2, "Got {image}");
         assert_eq!(image.count(), 35);
+
+        for _ in 2..50 {
+            image.step();
+        }
+        assert_eq!(image.count(), 3351);
     }
 }
