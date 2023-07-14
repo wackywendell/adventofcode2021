@@ -10,34 +10,15 @@ use log::debug;
 mod parser {
     use super::Game;
 
-    use nom::bytes::complete::tag;
-    use nom::character::complete::{char, digit1, one_of};
-    use nom::combinator::{all_consuming, map, map_res, recognize};
-    use nom::error::Error as NomError;
-    use nom::multi::many0;
-    use nom::sequence::{pair, preceded, tuple};
-
-    pub type ErrorRef<'a> = nom::Err<NomError<&'a str>>;
-    pub type Error = nom::Err<NomError<String>>;
-
-    fn ws(input: &str) -> nom::IResult<&str, &str> {
-        recognize(many0(one_of(" \n")))(input)
-    }
-
-    fn newline(input: &str) -> nom::IResult<&str, &str> {
-        recognize(pair(char('\n'), many0(char(' '))))(input)
-    }
-
-    fn int(input: &str) -> nom::IResult<&str, i64> {
-        map_res(digit1, str::parse::<i64>)(input)
-    }
+    pub use adventofcode2021::nom::Error;
+    use adventofcode2021::nom::*;
 
     pub fn game(input: &str) -> Result<Game, ErrorRef> {
         let line1 = preceded(tag("Player 1 starting position: "), int);
         let line2 = preceded(tag("Player 2 starting position: "), int);
 
         all_consuming(map(
-            tuple((ws, line1, newline, line2, ws)),
+            tuple((ws, line1, newline_ws, line2, ws)),
             |(_, p1, _, p2, _)| Game::new(p1, p2),
         ))(input)
         .map(|(_, game)| game)
