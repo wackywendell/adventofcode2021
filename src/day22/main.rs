@@ -58,6 +58,85 @@ impl Instruction {
         ];
         vals.iter().all(|&v| (-50..=50).contains(&v))
     }
+
+    pub fn cube(&self) -> Cube {
+        Cube {
+            x: self.xs.clone(),
+            y: self.ys.clone(),
+            z: self.zs.clone(),
+        }
+    }
+}
+
+pub struct Cube {
+    pub x: Range64,
+    pub y: Range64,
+    pub z: Range64,
+}
+
+fn range_overlap(a: &Range64, b: &Range64) -> Range64 {
+    let start = (*a.start()).max(*b.start());
+    let end = (*a.end()).min(*b.end());
+    start..=end
+}
+
+impl Cube {
+    pub fn new(x: Range64, y: Range64, z: Range64) -> Self {
+        Self { x, y, z }
+    }
+
+    pub fn as_instruction(self, on: bool) -> Instruction {
+        Instruction {
+            on,
+            xs: self.x,
+            ys: self.y,
+            zs: self.z,
+        }
+    }
+
+    pub fn count(&self) -> usize {
+        (self.x.end() - self.x.start() + 1) as usize
+            * (self.y.end() - self.y.start() + 1) as usize
+            * (self.z.end() - self.z.start() + 1) as usize
+    }
+
+    pub fn overlap(&self, other: &Self) -> Self {
+        Self {
+            x: range_overlap(&self.x, &other.x),
+            y: range_overlap(&self.y, &other.y),
+            z: range_overlap(&self.z, &other.z),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.x.is_empty() || self.y.is_empty() || self.z.is_empty()
+    }
+}
+
+pub fn apply_instructions(instructions: &[Instruction]) -> usize {
+    let mut count = 0;
+
+    let mut placed = vec![];
+    for instruction in instructions.iter().rev() {
+        let cube = instruction.cube();
+        if instruction.on {
+            // Add the volume of this cube, minus the volume of any cubes it
+            // overlaps, plus the volume of overlaps of overlaps, etc.
+            count += cube.count();
+            let mut overlaps = vec![];
+            for placed_cube in &placed {
+                let overlap = cube.overlap(placed_cube);
+                if overlap.is_empty() {
+                    continue;
+                }
+                overlaps.push(overlap.as_instruction(true));
+            }
+            count -= apply_instructions(&overlaps);
+        }
+        placed.push(cube);
+    }
+
+    count
 }
 
 pub struct Grid {
@@ -175,8 +254,8 @@ fn main() {
     println!("Part 1: {}", grid.count());
 
     info!("Found {} instructions", instructions.len());
-    let grid = Grid::from_instructions(&instructions);
-    println!("Part 2: {}", grid.count());
+    let count = apply_instructions(&instructions);
+    println!("Part 2: {}", count);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -320,5 +399,21 @@ mod tests {
         let instructions: Vec<Instruction> = parser::instructions(EXAMPLE3).unwrap().1;
         let grid = Grid::from_instructions(&instructions);
         assert_eq!(grid.count(), 2758514936282235);
+    }
+
+    #[test]
+    fn test_apply() {
+        let instructions: Vec<Instruction> = parser::instructions(EXAMPLE).unwrap().1;
+        let count = apply_instructions(&instructions);
+        assert_eq!(count, 39);
+
+        let mut instructions: Vec<Instruction> = parser::instructions(EXAMPLE2).unwrap().1;
+        instructions.retain(Instruction::is_init);
+        let count = apply_instructions(&instructions);
+        assert_eq!(count, 590784);
+
+        let instructions: Vec<Instruction> = parser::instructions(EXAMPLE3).unwrap().1;
+        let count = apply_instructions(&instructions);
+        assert_eq!(count, 2758514936282235);
     }
 }
