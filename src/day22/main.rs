@@ -3,7 +3,7 @@ use std::ops::RangeInclusive;
 use std::path::PathBuf;
 
 use clap::Parser;
-use log::debug;
+use log::{debug, info};
 
 mod parser {
     use std::ops::RangeInclusive;
@@ -92,7 +92,7 @@ impl Grid {
         zs.sort();
         zs.dedup();
 
-        println!("Found {}, {}, {} cells", xs.len(), ys.len(), zs.len());
+        info!("Found {}, {}, {} cells", xs.len(), ys.len(), zs.len());
 
         fn find(xs: &[i64], range: Range64) -> std::ops::Range<usize> {
             xs.binary_search(range.start()).unwrap()..xs.binary_search(&(*range.end() + 1)).unwrap()
@@ -113,7 +113,7 @@ impl Grid {
             let x_range = find(&xs, ixs.clone());
             let y_range = find(&ys, iys.clone());
             let z_range = find(&zs, izs.clone());
-            println!(
+            info!(
                 "{} Inserting {} {} {}={}",
                 n,
                 x_range.len(),
@@ -174,7 +174,7 @@ fn main() {
     let grid = Grid::from_instructions(&init_instructions);
     println!("Part 1: {}", grid.count());
 
-    println!("Found {} instructions", instructions.len());
+    info!("Found {} instructions", instructions.len());
     let grid = Grid::from_instructions(&instructions);
     println!("Part 2: {}", grid.count());
 }
