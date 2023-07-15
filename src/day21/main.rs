@@ -4,6 +4,7 @@ use std::collections::{BinaryHeap, HashMap};
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use adventofcode2021::nom::simplify;
 use clap::Parser;
 use log::debug;
 
@@ -13,7 +14,7 @@ mod parser {
     pub use adventofcode2021::nom::Error;
     use adventofcode2021::nom::*;
 
-    pub fn game(input: &str) -> Result<Game, ErrorRef> {
+    pub fn game(input: &str) -> IResult<Game> {
         let line1 = preceded(tag("Player 1 starting position: "), int);
         let line2 = preceded(tag("Player 2 starting position: "), int);
 
@@ -21,7 +22,6 @@ mod parser {
             tuple((ws, line1, newline_ws, line2, ws)),
             |(_, p1, _, p2, _)| Game::new(p1, p2),
         ))(input)
-        .map(|(_, game)| game)
     }
 }
 
@@ -213,10 +213,10 @@ impl Game {
 }
 
 impl FromStr for Game {
-    type Err = parser::Error;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parser::game(s).map_err(|e| e.to_owned())
+        simplify(s, parser::game(s))
     }
 }
 
