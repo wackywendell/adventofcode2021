@@ -55,8 +55,14 @@ mod parser {
         )(rest)?;
 
         let (rest, rooms1) = delimited(pair(tag(indent), tag("##")), room_row, tag("##\n"))(rest)?;
-        let (rest, rooms2) = delimited(pair(tag(indent), tag("  ")), room_row, char('\n'))(rest)?;
+        let (rest, more_rooms) = many0(delimited(
+            pair(tag(indent), tag("  ")),
+            room_row,
+            char('\n'),
+        ))(rest)?;
         let (rest, _) = tuple((tag(indent), tag("  #########"), ws))(rest)?;
+
+        let room_depth = more_rooms.len() as i16 + 1;
 
         let mut amphipods = HashMap::new();
         for (amph, loc) in hallways.into_iter().zip(1..=11) {
@@ -69,13 +75,21 @@ mod parser {
                 amphipods.insert(Location::Room(loc, 1), amphipod);
             }
         }
-        for (amph, loc) in rooms2.into_iter().zip(1..=4) {
-            if let Some(amphipod) = amph {
-                amphipods.insert(Location::Room(loc, 2), amphipod);
+        for (row, depth) in more_rooms.into_iter().zip(2..) {
+            for (amph, room) in row.into_iter().zip(1..=4) {
+                if let Some(amphipod) = amph {
+                    amphipods.insert(Location::Room(room, depth), amphipod);
+                }
             }
         }
 
-        Ok((rest, Burrow { amphipods }))
+        Ok((
+            rest,
+            Burrow {
+                amphipods,
+                room_depth,
+            },
+        ))
     }
 
     pub fn only_burrow(input: &str) -> IResult<Burrow> {
@@ -138,6 +152,7 @@ impl Amphipod {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Burrow {
     pub amphipods: HashMap<Location, Amphipod>,
+    pub room_depth: i16,
 }
 
 impl Hash for Burrow {
@@ -197,21 +212,24 @@ impl Burrow {
         }
 
         // It's in its room
-        if d == 2 {
-            // it's all the way down in its room
-            return true;
+        for depth in d + 1..=self.room_depth {
+            if self.amphipods.get(&Location::Room(r, depth)) != Some(&amph) {
+                return false;
+            }
         }
 
-        d == 1 && self.amphipods.get(&Location::Room(r, 2)) == Some(&amph)
+        true
     }
 
     // Returns a list of (distance, possible destination) for a given amphipod
     // at a given location
     pub fn movements(&self, loc: Location, amph: Amphipod) -> Vec<(i16, Location)> {
-        if let Location::Room(n, 2) = loc {
-            // There is another amphipod above this one; we're stuck in
-            if self.amphipods.contains_key(&Location::Room(n, 1)) {
-                return vec![];
+        if let Location::Room(n, d) = loc {
+            for dabove in 1..d {
+                // There is another amphipod above this one; we're stuck in
+                if self.amphipods.contains_key(&Location::Room(n, dabove)) {
+                    return vec![];
+                }
             }
         }
 
@@ -225,10 +243,21 @@ impl Burrow {
         };
 
         // Find an open spot in the destination room, if any
-        let spot = (1..=2)
-            .rev()
-            .map(move |depth| Location::Room(room_no, depth))
-            .find(|loc| !self.amphipods.contains_key(loc));
+        let mut spot = None;
+        for depth in (1..=self.room_depth).rev() {
+            let loc = Location::Room(room_no, depth);
+            match self.amphipods.get(&loc) {
+                None => {
+                    spot = Some(loc);
+                    break;
+                }
+                Some(&other) if amph == other => {
+                    // There's another amphipod of this sort at this depth, so we could be next
+                    continue;
+                }
+                Some(_) => break,
+            }
+        }
 
         let (h1, d1) = loc.to_hallway();
         if let Some(spot) = spot {
@@ -353,7 +382,7 @@ impl Display for Burrow {
         }
         writeln!(f, "#")?;
 
-        for d in 1..=2 {
+        for d in 1..=self.room_depth {
             if d == 1 {
                 write!(f, "###")?;
             } else {
@@ -526,6 +555,7 @@ mod tests {
     #[test]
     fn test_basic() {
         let burrow: Burrow = EXAMPLE.parse().unwrap();
+        println!("{}", burrow);
         assert_eq!(burrow.amphipods.len(), 8);
     }
 
@@ -603,5 +633,60 @@ mod tests {
         let burrow: Burrow = EXAMPLE.parse().unwrap();
         let mut solver = Solver::new(burrow);
         assert_eq!(solver.solve(), Some(12521));
+    }
+
+    const EXAMPLE2: &str = r#"
+        #############
+        #...........#
+        ###B#C#B#D###
+          #D#C#B#A#
+          #D#B#A#C#
+          #A#D#C#A#
+          #########"#;
+
+    #[test]
+    #[ignore]
+    fn test_solver2() {
+        let burrow: Burrow = EXAMPLE2.parse().unwrap();
+        assert_eq!(burrow.amphipods.len(), 16);
+        println!("{}", burrow);
+        let mut solver = Solver::new(burrow);
+        info!(
+            "Made solver, initial cost {}",
+            solver.queue.peek().unwrap().expected_cost
+        );
+
+        for i in 0.. {
+            let p = solver.queue.peek().unwrap();
+            let c = p.expected_cost;
+            let e = p.energy;
+            let min = p.burrow.min_cost();
+            assert_eq!(p.energy + min, c);
+            let log_level = if i % 1000 == 0 {
+                log::Level::Info
+            } else {
+                log::Level::Debug
+            };
+            log::log!(
+                log_level,
+                "Step {:2}:{:5}+{:5} ->{:5} ({})\n{}",
+                i,
+                e,
+                min,
+                c,
+                solver.queue.len(),
+                p.burrow
+            );
+
+            let stepped = solver.step();
+            if !stepped {
+                assert_eq!(min, 0);
+                assert_eq!(e, c);
+                assert_eq!(e, 44169);
+                break;
+            }
+        }
+
+        // assert_eq!(solver.solve(), Some(44169));
     }
 }
