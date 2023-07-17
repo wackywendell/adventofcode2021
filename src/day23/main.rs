@@ -9,6 +9,10 @@ use adventofcode2021::nom::simplify;
 use clap::Parser;
 use log::{debug, info};
 
+const UNDER_THE_FOLD: &str = r###"
+#D#C#B#A#
+#D#B#A#C#"###;
+
 mod parser {
     use std::collections::HashMap;
 
@@ -37,7 +41,7 @@ mod parser {
         alt((map(amphipod, Some), map(char('.'), |_| None)))(input)
     }
 
-    fn room_row(input: &str) -> IResult<Vec<Option<Amphipod>>> {
+    pub fn room_row(input: &str) -> IResult<Vec<Option<Amphipod>>> {
         preceded(char('#'), many_m_n(4, 4, terminated(location, char('#'))))(input)
     }
 
@@ -351,6 +355,50 @@ impl Burrow {
         }
         cost
     }
+
+    pub fn insert_row(&mut self, row: [Option<Amphipod>; 4], depth: i16) {
+        self.room_depth += 1;
+        let mut new_amphs = HashMap::new();
+        for (&loc, &a) in self.amphipods.iter() {
+            match loc {
+                Location::Room(r, d) if d >= depth => {
+                    new_amphs.insert(Location::Room(r, d + 1), a);
+                }
+                l => {
+                    new_amphs.insert(l, a);
+                }
+            }
+
+            for (&a, r) in row.iter().zip(1..=4) {
+                if let Some(a) = a {
+                    new_amphs.insert(Location::Room(r, depth), a);
+                }
+            }
+        }
+
+        self.amphipods = new_amphs;
+    }
+
+    pub fn insert_row_str(&mut self, s: &str, depth: i16) -> Result<(), anyhow::Error> {
+        let mut d = depth;
+        let mut row = [None; 4];
+        for line in s.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let result: anyhow::Result<Vec<Option<Amphipod>>> = simplify(
+                trimmed,
+                nom::combinator::all_consuming(parser::room_row)(trimmed),
+            );
+            let amphs = result?;
+            row.copy_from_slice(&amphs);
+            self.insert_row(row, d);
+            d += 1;
+        }
+
+        Ok(())
+    }
 }
 
 impl FromStr for Burrow {
@@ -526,10 +574,16 @@ fn main() {
     debug!("Using input {}", args.input.display());
     let s = std::fs::read_to_string(args.input).unwrap();
     let burrow = Burrow::from_str(&s).unwrap();
-    let mut solver = Solver::new(burrow);
-    let e = solver.solve().unwrap();
 
+    let mut solver = Solver::new(burrow.clone());
+    let e = solver.solve().unwrap();
     println!("Found {e}");
+
+    let mut burrow2 = burrow;
+    burrow2.insert_row_str(UNDER_THE_FOLD, 2).unwrap();
+    let mut solver2 = Solver::new(burrow2.clone());
+    let e2 = solver2.solve().unwrap();
+    println!("Part two: {e2}");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -643,6 +697,15 @@ mod tests {
           #D#B#A#C#
           #A#D#C#A#
           #########"#;
+
+    #[test]
+    fn test_row_insert() {
+        let mut burrow1: Burrow = EXAMPLE.parse().unwrap();
+        burrow1.insert_row_str(UNDER_THE_FOLD, 2).unwrap();
+        let burrow2: Burrow = EXAMPLE2.parse().unwrap();
+
+        assert_eq!(burrow1, burrow2);
+    }
 
     #[test]
     #[ignore]
